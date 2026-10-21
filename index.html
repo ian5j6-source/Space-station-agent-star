@@ -1,0 +1,429 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#071125"><title>雷電射擊 V32 — 援軍全武裝與魔王預警</title><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071125;color:white;font-family:system-ui,'Noto Sans TC',sans-serif;touch-action:none}canvas{display:block;width:100%;height:100%;touch-action:none}#hud{position:fixed;top:env(safe-area-inset-top);left:0;width:56%;max-width:235px;pointer-events:none;padding:6px 8px;background:#0a1732e8;border-radius:0 0 12px 0;font-size:11px}#healthLabel{font-size:12px;font-weight:800;color:#fff;margin-top:5px}#healthTrack{height:10px;border:1px solid #b9d5f5;border-radius:9px;background:#481b30;overflow:hidden;margin-top:3px}#healthFill{width:70%;height:100%;background:linear-gradient(90deg,#2ce6a4,#b6ff67);transition:width .12s}#line2{color:#8beaff;font-size:12px;margin-top:3px}#controls{position:fixed;bottom:calc(9px + env(safe-area-inset-bottom));left:7px;right:7px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;z-index:10}#controls button{width:100%;min-width:0;min-height:52px;padding:5px 1px;font-size:clamp(11px,3.2vw,15px);white-space:nowrap}#abilities{position:fixed;bottom:calc(69px + env(safe-area-inset-bottom));right:8px;display:flex;gap:5px;align-items:center;z-index:10}#abilities button{min-height:31px;min-width:0!important;padding:3px 7px;font-size:10px;border-radius:8px}#escort{display:none}button{font-size:12px;touch-action:manipulation;background:#122c51e8;color:#fff;border:1px solid #6bd8ff;border-radius:10px;font-weight:700;min-height:43px;padding:5px 9px}button.active{background:#177eb0}#overlay{position:fixed;inset:0;background:#061023f2;display:flex;align-items:center;justify-content:flex-start;flex-direction:column;text-align:center;padding:clamp(35px,10vh,90px) 14px 18px;z-index:30;overflow-y:auto;gap:8px}#overlay h1{font-size:clamp(25px,7vw,33px);color:#7ce8ff;margin:0 0 8px}#overlay p{line-height:1.5;max-width:390px;margin:0 0 8px;font-size:14px}#stageChoice{margin:4px 0 8px;display:flex;align-items:center;gap:10px;font-weight:800;color:#aeefff}#stageSelect{background:#122c51;color:white;border:2px solid #6bd8ff;border-radius:9px;font-size:19px;padding:9px 15px;min-width:128px}#start{font-size:20px;padding:13px 35px;background:#15659a;min-height:54px;position:relative;z-index:31}#pause{margin-left:auto;min-height:46px!important;min-width:72px!important;font-size:16px!important;padding:7px 13px!important;border:2px solid #8ce7ff!important;box-shadow:0 0 9px #27a5e880}#notice{position:fixed;top:30%;width:100%;text-align:center;font-size:27px;font-weight:900;color:#ffe57a;text-shadow:0 2px 12px #000;pointer-events:none}#hint{font-size:11px;color:#c3d6ee;position:fixed;bottom:calc(108px + env(safe-area-inset-bottom));width:100%;text-align:center;pointer-events:none}@media(max-width:380px){#controls button{font-size:11px;padding:4px 0}#abilities button{font-size:9px;padding:3px 5px}#hud{font-size:11px}}</style></head><body><canvas id="game"></canvas><div id="hud"><div id="line1"></div><div id="line2"></div><div id="healthLabel">戰機生命值：7 / 10</div><div id="healthTrack"><div id="healthFill"></div></div></div><div id="bossHud" style="display:none;position:fixed;top:calc(env(safe-area-inset-top) + 6px);right:7px;width:40%;padding:7px;background:#3b153de8;border:1px solid #e986f5;border-radius:9px;pointer-events:none;font-size:12px;font-weight:800;text-align:center">魔王 HP<div style="height:12px;background:#321326;border:1px solid #f2a1fc;border-radius:8px;overflow:hidden;margin-top:4px"><div id="bossFill" style="height:100%;width:100%;background:linear-gradient(90deg,#fa3b8e,#e7a3ff)"></div></div></div><div id="notice"></div><div id="hint">拖曳移動 · 自動射擊 · 第五格時間停止 · 補包可升級停時</div><div id="controls"><button data-w="0">散射</button><button data-w="1">雷射</button><button data-w="2">追蹤</button><button data-w="3">螺旋</button><button id="freeze" style="border-color:#b0f9ff;background:#134659">時間停止</button></div><div id="abilities"><button id="shield" style="background:#233d58;border-color:#72e9ff">護盾 0%</button><button id="pause">暫停</button></div><div id="overlay"><h1 id="title">雷電射擊 V45</h1><p id="desc">選擇起始關卡，立即開始挑戰！<br>左手移動戰機，右手切換武器與護盾。</p><label id="stageChoice">選擇起始關卡 <select id="stageSelect" aria-label="起始關卡"><option value="0">第 1 關</option><option value="1">第 2 關</option><option value="2">第 3 關</option><option value="3">第 4 關</option><option value="4">第 5 關</option><option value="5">第 6 關</option><option value="6">第 7 關</option><option value="7">第 8 關</option><option value="8">第 9 關</option><option value="9">第 10 關</option></select></label><button id="start">開始挑戰</button></div><script>
+'use strict';(()=>{
+const C=document.getElementById('game'),ctx=C.getContext('2d'),overlay=document.getElementById('overlay'),title=document.getElementById('title'),desc=document.getElementById('desc'),notice=document.getElementById('notice'),line1=document.getElementById('line1'),line2=document.getElementById('line2'),healthLabel=document.getElementById('healthLabel'),healthFill=document.getElementById('healthFill'),bossHud=document.getElementById('bossHud'),bossFill=document.getElementById('bossFill');
+const shieldBtn=document.getElementById("shield");const W=420,H=780, names=['散射彈','全屏雷射','追蹤飛彈','螺旋彈幕','藍色擴散彈'],cols=['#ffe24c','#ffe24c','#ffe24c','#26baff','#3e8bff'],stages=[['星際前哨','#071125',20,2400],['隕石風暴','#20152c',27,3700],['機械要塞','#112b30',34,5400],['虛空裂隙','#261536',40,7600],['熔岩戰線','#321b22',47,10300],['冰霜星雲','#10273a',53,13800],['電磁禁區','#182c37',320,17900],['深淵蟲巢','#2c1835',430,22800],['黑洞核心','#121329',560,28900],['終焉皇帝','#321526',720,37000]];
+let G,scaleX=1,scaleY=1,pointer=null,movePointerId=null,last=0,acc=0,keys={};const rand=(a,b)=>a+Math.random()*(b-a),clamp=(x,a,b)=>Math.max(a,Math.min(b,x)),dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function resize(){C.width=Math.round(innerWidth*devicePixelRatio);C.height=Math.round(innerHeight*devicePixelRatio);scaleX=C.width/W;scaleY=C.height/H}addEventListener('resize',resize);resize();
+function init(retry=false){const selectedStage=Number(document.getElementById("stageSelect").value)||0;const saved=retry&&G?{stage:G.stage,levels:[...G.levels],weapon:G.weapon,rate:G.rate,speed:G.speed,score:G.score,kills:G.kills}:null;G={state:'play',stage:saved?saved.stage:selectedStage,stageKills:0,boss:false,clear:0,elapsed:0,spawn:0,drop:0,shot:0,phase:0,beamHeat:0,shield:0,shieldTime:0,escortCharge:0,escortTime:0,escortShot:0,escorts:[],escortBuff:0,nova:null,score:saved?saved.score:0,kills:saved?saved.kills:0,hp:(saved?saved.stage:selectedStage)>=7?30:(saved?saved.stage:selectedStage)>=6?20:10,weapon:saved?saved.weapon:0,levels:saved?saved.levels:[1,1,1,1,1],rate:saved?saved.rate:1,speed:saved?saved.speed:1,inv:0,player:{x:W/2,y:H-145},bullets:[],enemies:[],bad:[],drops:[],fx:[],chain:[],stars:Array.from({length:90},()=>({x:rand(0,W),y:rand(0,H),v:rand(.5,2.5)})),banner:3,bossClock:0,enemyShot:0,eliteSpawn:0,bossAdds:0,screenClearDrops:0,clearCooldown:0,freezeTime:0,freezeCD:0};overlay.style.display='none';document.getElementById('stageChoice').style.display='none';bossHud.style.display='none';pointer=null;movePointerId=null;moveTouchId=null;updateButtons()}
+function updateButtons(){document.querySelectorAll('[data-w]').forEach(b=>{const n=+b.dataset.w;b.classList.toggle('active',n===G.weapon);b.textContent=['散射','雷射','追蹤','螺旋','擴散'][n]+' '+G.levels[n]});updateFreezeButton()}
+const freezeBtn=document.getElementById('freeze');
+function updateFreezeButton(){if(!G||!freezeBtn)return;let lv=G.levels[4]||1;freezeBtn.textContent=G.freezeTime>0?'停 '+G.freezeTime.toFixed(1)+'s':G.freezeCD>0?'CD '+Math.ceil(G.freezeCD)+'s':'停時 '+lv;freezeBtn.disabled=G.state!=='play'||G.freezeCD>0||G.freezeTime>0;freezeBtn.style.opacity=freezeBtn.disabled?'.62':'1'}
+function useFreeze(){if(!G||G.state!=='play'||G.freezeCD>0||G.freezeTime>0)return;G.freezeTime=Math.min(5,(G.levels[4]||1)*.5);G.freezeCD=60;updateFreezeButton()}
+function end(win){G.state=win?'win':'over';title.textContent=win?'恭喜！十關全破！':G.novaDeathTime===0?'全螢幕爆炸擊墜！':'戰機墜毀';desc.innerHTML=`最終分數：${G.score}<br>擊落數：${G.kills}<br>抵達第 ${G.stage+1} 關`+(win?'':`<br>可從第 ${G.stage+1} 關重新挑戰，保留武器等級與強化，生命恢復至 10。`);document.getElementById('start').textContent=win?'重新選關挑戰':`重試第 ${G.stage+1} 關`;document.getElementById('stageChoice').style.display=win?'flex':'none';overlay.style.display='flex'}
+function flash(t,seconds=2){notice.textContent=t;G.banner=seconds}
+function blast(x,y,r,color='#ffb26a'){G.fx.push({x,y,r:5,max:r,t:0.5,color})}
+function drop(x,y,force=false){if(!force&&Math.random()>.19)return;const k=Math.random();let type=G.stage>=6&&Math.random()<.275?'support':k<.68?'weapon':k<.82?'rate':k<.94?'speed':'heal';G.drops.push({x,y,type,wi:Math.floor(rand(0,5)),r:14})}
+function enemy(boss=false){if(boss){let hp=Math.round(stages[G.stage][3]*((G.stage>=5?1.25+(G.stage-5)*.18:1)*2.2)*(G.stage<=1?.6:1)*(G.stage===6?2.7:G.stage===7?2.4:1)*(G.stage>=7?2:1))*(G.stage===9?5:1)*(G.stage===7?.7:1);G.enemies.push({x:G.stage===7?W*.64:G.stage===8?W*.30:W/2,y:-75,r:43+Math.min(G.stage,7)*3,hp,max:hp,kind:'boss',isMini:false,damageScale:1,v:1,fire:0,ai:0,attack:0,charge:0,chargeX:0,laser:0,burst:0,dir:1,moveMode:0,diveT:0,diveWarn:0,diveLane:0,warpWarn:0,warpCooldown:6,warpX:0,warpY:0,warpFlash:0,moveTarget:0,beamSet:[],beamCharge:0,beamFire:0,novaTimer:Math.max(10,21-G.stage*1.05)});if(G.stage===7||G.stage===8){const primary=G.enemies[G.enemies.length-1];const mini=G.stage===7;G.enemies.push({...primary,x:mini?W*.23:W*.72,y:-115,r:mini?Math.round(primary.r*.55):primary.r,hp:mini?Math.round(hp*.5):hp,max:mini?Math.round(hp*.5):hp,isMini:mini,damageScale:mini?.5:1,ai:1.2,fire:24,warpCooldown:8,beamSet:[],novaTimer:mini?25:Math.max(10,21-G.stage*1.05)+7});}return}
+let t=Math.random(),kind=G.stage>=5&&t>.78?(t>.93?'elite':'interceptor'):t<(.42-G.stage*.014)?'small':t<.59?'fast':t<.73?'tank':t<.88?'raider':t<.95?'zigzag':'gunship',r={small:13,fast:11,tank:21,raider:14,zigzag:15,gunship:24,elite:27,interceptor:16}[kind],hp={small:9,fast:7,tank:36,raider:17,zigzag:19,gunship:60,elite:115,interceptor:40}[kind]*(G.stage===0?.68:G.stage<5?1.18+G.stage*.32:2.2+(G.stage-5)*.62);
+G.enemies.push({x:rand(25,W-25),y:-35,r,hp,max:hp,kind,v:({small:2.4,fast:3.8,tank:1.8,raider:3.1,zigzag:2.8,gunship:1.7,elite:2.3,interceptor:4.1}[kind]+G.stage*.24),fire:rand(0,40),ai:0,baseX:rand(45,W-45),dir:Math.random()<.5?-1:1});}
+let activeBossDamageScale=1;function hostile(x,y,vx,vy,r=5,type='normal',extra={}){if(G.bad.length<450)G.bad.push({x,y,vx,vy,r,type,age:0,damageScale:activeBossDamageScale,...extra})}
+function explosion(x,y,r,damagePlayer=true,damageScale=1){blast(x,y,r,'#b32cff');G.fx.push({x,y,r:r*.5,max:r*1.2,t:.55,color:'#ff284f'});if(damagePlayer&&Math.hypot(x-G.player.x,y-G.player.y)<r+10)hit(2*damageScale);}
+// 藍色擴散彈：每顆彈珠在畫面四邊彈跳，五秒後消失。
+// 藍色擴散彈：撞擊敵人、紅彈或四邊障礙物後輻射分裂，最多兩次；不傷害敵機。
+const SPREAD_LIMIT=480;
+function spawnSpread(x,y,lv,depth=0,angle=-Math.PI/2,originTime=0){
+ if(G.bullets.length>=SPREAD_LIMIT)return;
+ const r=depth===0?11+lv*.45:depth===1?5.2+lv*.12:2.4;
+ const speed=depth===0?7.2:depth===1?8.2:9.4;
+ G.bullets.push({x:clamp(x,r+1,W-r-1),y:clamp(y,r+1,H-r-1),vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,r,dmg:0,type:'spread',depth,age:originTime,splitLock:.08,hitPower:depth===0?3:depth===1?2:1});
+}
+function splitSpread(b){
+ b.dead=true;
+ if(b.depth>=2||b.age>=.94)return;
+ let count=b.depth===0?9:6,base=rand(0,Math.PI*2);
+ for(let j=0;j<count;j++)spawnSpread(b.x,b.y,G.levels[4],b.depth+1,base+j*Math.PI*2/count,b.age);
+ blast(b.x,b.y,b.depth===0?22:11,'#39caff');
+}
+function spawnRicochet(p,lv){
+ const angle=-Math.PI/2+rand(-.42,.42);
+ spawnSpread(p.x,p.y-27,lv,0,angle,0);
+}
+function shoot(){let w=G.weapon,lv=G.levels[w],rate=Math.max(.055,.18-G.rate*.012);if(w===1||w===3)return;if(w===4)rate=Math.max(.075,.84-lv*.071-G.rate*.009);if(G.shot<rate)return;G.shot=0;let p=G.player;const add=(vx,vy,r,dmg,type)=>{if(G.bullets.length<1800)G.bullets.push({x:p.x,y:p.y-25,vx,vy,r,dmg,type,age:0})};
+if(w===0){
+  const boss=G.enemies.find(e=>e.kind==='boss'&&!e.dead);
+  const n=Math.min(27,3+lv*2),spread=Math.min(1.45,.38+lv*.11);
+  // 王關維持正前方扇形射擊，保留加速、射程及傷害。
+  const aim=-Math.PI/2; // 固定朝前方散射，王關也不追蹤。
+  for(let i=0;i<n;i++){
+   const a=aim+(i-(n-1)/2)*spread/(n-1);
+   add(Math.cos(a)*14,Math.sin(a)*14,2.8+lv*.35,1.5+lv*.36,'shot');
+  }
+ }
+else if(w===2){for(let i=0;i<Math.min(11,1+lv);i++)add((i-lv/2)*1.5,-7,4+lv*.3,4+lv,'homing')}
+else if(w===4){let n=lv>=9?3:lv>=6?2:1;for(let i=0;i<n;i++)spawnRicochet(p,lv)}
+}
+function laserLanes(lv){let n=1+Math.floor((lv-1)/2);n=Math.min(6,n);let spacing=lv>=8?39:31;return Array.from({length:n},(_,i)=>(i-(n-1)/2)*spacing)}
+function fireOrbits(){let lv=G.levels[3],rings=1+Math.floor((lv-1)/2),n=8+lv*2,orbs=[];for(let ring=0;ring<rings;ring++){let rad=55+ring*43;let count=Math.max(6,Math.round(n*.72)+ring*2);for(let i=0;i<count;i++){let a=G.phase*(1.4+ring*.22)*(ring%2?-1:1)+i*Math.PI*2/count+ring*.55;orbs.push({x:G.player.x+Math.cos(a)*rad,y:G.player.y+Math.sin(a)*rad,r:5+lv*.25,ring})}}return orbs}
+function useShield(){if(!G||G.state!=='play'||G.shield<100)return;G.shield=0;G.inv=Math.max(G.inv,2);G.shieldTime=2;flash('⚡ 絕對防禦！2 秒 ⚡',.9);blast(G.player.x,G.player.y,70,'#69f9ff')}
+function useEscort(){if(!G||G.state!=='play'||G.stage<5)return;G.escorts.push({time:20,shot:0,serial:G.kills+Math.random()});G.escortTime=20;flash('援軍抵達！20秒',1.6);blast(G.player.x,G.player.y,95,'#ffd86b')}
+function escortPositions(){let a=[];for(let si=0;si<G.escorts.length;si++){for(let i=0;i<2;i++){let slot=si*2+i,angle=(slot+.5)*2.39996,rad=88+Math.sqrt(slot)*19; a.push({x:clamp(G.player.x+Math.cos(angle)*rad,16,W-16),y:clamp(G.player.y+22+Math.sin(angle)*rad,85,H-95),slot})}}return a}
+function escortAttack(dt){
+ if(!G.escorts.length)return;
+ const w=G.weapon,lv=G.levels[w],positions=escortPositions();
+ // 每一架護衛機擁有自己的發射時鐘，避免其他護衛機重置冷卻造成只有少數會攻擊。
+ let n=0;
+ for(const squad of G.escorts){
+  if(!squad.timers)squad.timers=[0,0];
+  for(let j=0;j<2;j++){
+   const pos=positions[n++];if(!pos)continue;
+   squad.timers[j]+=dt;
+   if(w===1){
+    const width=6+lv*1.7;
+    for(const e of G.enemies)for(const off of laserLanes(lv))
+     if(e.y<pos.y&&Math.abs(e.x-(pos.x+off))<e.r+width)
+      e.hp-=dt*(e.kind==='boss'?37+lv*11:75+lv*27)*(1+G.rate*.045)*.5;
+   }else if(w===3){
+    const rings=1+Math.floor((lv-1)/2);
+    for(let ring=0;ring<rings;ring++){
+     const count=Math.max(6,Math.round((8+lv*2)*.72)+ring*2),rad=55+ring*43;
+     for(let k=0;k<count;k++){
+      const angle=G.phase*(1.4+ring*.22)*(ring%2?-1:1)+k*Math.PI*2/count+ring*.55;
+      const x=pos.x+Math.cos(angle)*rad,y=pos.y+Math.sin(angle)*rad,r=5+lv*.25;
+      for(const e of G.enemies)if(Math.hypot(e.x-x,e.y-y)<e.r+r)
+       e.hp-=dt*(26+lv*10)*.18;
+      for(const bad of G.bad)if(!bad.dead&&Math.hypot(bad.x-x,bad.y-y)<bad.r+r+3){bad.dead=true;blast(bad.x,bad.y,9,'#36bfff')}
+     }
+    }
+   }else{
+    const interval=w===4?Math.max(.075,.84-lv*.071-G.rate*.009):Math.max(.055,.18-G.rate*.012);
+    if(squad.timers[j]<interval)continue;
+    squad.timers[j]%=interval;
+    const push=(vx,vy,r,dmg,type)=>{
+     if(G.bullets.length<1800)G.bullets.push({x:pos.x,y:pos.y-18,vx,vy,r,dmg:dmg*.5,type,age:0,escort:true});
+    };
+    if(w===0){
+     // 每一架援軍都保有獨立射擊：全部固定正前方扇形射擊。
+     const boss=G.enemies.find(e=>e.kind==='boss'&&!e.dead);
+     const count=Math.min(11,5+Math.floor(lv/2));
+     const spread=Math.min(.95,.35+lv*.055);
+     const aim=-Math.PI/2; // 援軍固定朝前方散射。
+     for(let k=0;k<count;k++){
+      const angle=aim+(k-(count-1)/2)*spread/(count-1);
+      push(Math.cos(angle)*14,Math.sin(angle)*14,3.2+lv*.35,1.5+lv*.36,'shot')
+     }
+    }else if(w===2){
+     for(let k=0;k<Math.min(11,1+lv);k++)push((k-lv/2)*1.5,-7,4+lv*.3,4+lv,'homing');
+    }else if(w===4){
+     const count=lv>=9?3:lv>=6?2:1;
+     for(let k=0;k<count;k++)if(G.bullets.length<850)
+      spawnSpread(pos.x,pos.y-18,lv,0,-Math.PI/2+rand(-.6,.6),0);
+    }
+   }
+  }
+ }
+}
+
+function hit(damage=1){if(G.inv>0)return;G.hp-=damage;G.inv=1.5;blast(G.player.x,G.player.y,38,'#ff526a');if(G.hp<=0)end(false)}
+function tick(dt){if(G.state==='novaDeath'){G.novaDeathTime=Math.max(0,(G.novaDeathTime||0)-dt);if(G.nova){G.nova.boom=G.novaDeathTime;G.nova.triggered=true}if(G.novaDeathTime<=0){end(false)}return}if(G.state!=='play')return;if(G.freezeTime>0){
+ G.freezeTime=Math.max(0,G.freezeTime-dt);
+ // 時間停止只影響敵方；玩家飛機、護衛軍、所有我方武器照常更新。
+ let sMove=Math.min(dt*60,2.3),plane=G.player;
+ if(pointer){plane.x+=(pointer.x-plane.x)*Math.min(1,dt*18);plane.y+=(pointer.y-plane.y)*Math.min(1,dt*18)}
+ else{let dx=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0),m=Math.max(1,Math.hypot(dx,dy));plane.x+=dx/m*(6+G.speed*.7)*sMove;plane.y+=dy/m*(6+G.speed*.7)*sMove}
+ plane.x=clamp(plane.x,18,W-18);plane.y=clamp(plane.y,110,H-110);
+ G.phase+=dt*7;
+ // V45：敵方及補包位置在停時中凍結，但我方可以碰觸、立即撿取地上的任何補包。
+ // 拾取效果與普通時間一致；包含第五格的時間停止升級補包。
+ for(const d of G.drops){
+  if(d.dead||dist(d,plane)>=d.r+18)continue;
+  d.dead=true;
+  if(d.type==='clear'){
+   for(const foe of G.enemies){if(foe.kind!=='boss'){foe.dead=true;G.score+=10;G.kills++;G.stageKills++}}
+   G.bad=[];G.enemies=G.enemies.filter(foe=>!foe.dead);
+   blast(W/2,H/2,Math.max(W,H),'#ffe96c');flash('全螢幕清場！',1.3);
+  }else if(d.type==='weapon'){
+   G.levels[d.wi]=Math.min(10,G.levels[d.wi]+1);
+  }else if(d.type==='support'){
+   useEscort();flash('吃到「援」！護衛軍出擊20秒',1.3);
+  }else if(d.type==='rate')G.rate=Math.min(10,G.rate+1);
+  else if(d.type==='speed')G.speed=Math.min(10,G.speed+1);
+  else G.hp=Math.min(G.stage>=7?30:G.stage>=6?20:10,G.hp+(G.stage===6?12:2));
+  blast(d.x,d.y,28,'#a7ff82');updateButtons();
+ }
+ G.drops=G.drops.filter(d=>!d.dead);
+ G.escorts=G.escorts.filter(q=>(q.time-=dt)>0);
+ G.escortTime=G.escorts.length?Math.max(...G.escorts.map(q=>q.time)):0;
+ G.shot+=dt;shoot();escortAttack(dt);
+ // 停止期間我方持續移動、射擊與造成傷害；敵機、敵彈、敵方技能倒數維持凍結。
+ if(G.weapon===1){let lv=G.levels[1],width=6+lv*1.7;for(let e of G.enemies)for(let off of laserLanes(lv))if(e.y<G.player.y&&e.y+e.r>0&&Math.abs(e.x-(G.player.x+off))<e.r+width)e.hp-=dt*(e.kind==='boss'?(37+lv*11):(75+lv*27))*(1+G.rate*.045)}
+ if(G.weapon===3){for(let orb of fireOrbits())for(let e of G.enemies)if(Math.hypot(e.x-orb.x,e.y-orb.y)<e.r+orb.r)e.hp-=dt*(e.kind==='boss'?.24:.36)*(26+G.levels[3]*10)}
+ // 螺旋彈與援軍的防禦光環仍然可清除停住的敵彈。
+ if(G.weapon===3){for(let orb of fireOrbits())for(let b of G.bad)if(!b.dead&&Math.hypot(b.x-orb.x,b.y-orb.y)<b.r+orb.r+5){b.dead=true;blast(b.x,b.y,b.type==='explosive'?25:11,'#36bfff')}}
+ if(G.escorts.length&&G.weapon===3){for(let pos of escortPositions())for(let b of G.bad)if(!b.dead&&b.type==='explosive'&&Math.hypot(b.x-pos.x,b.y-pos.y)<65){b.dead=true;blast(b.x,b.y,25,'#36bfff')}}
+ let s=Math.min(dt*60,2.3),p=G.player;
+for(let b of G.bullets){
+ b.age+=dt;
+  if(b.type==='spread'){
+   if(b.age>=1){b.dead=true;continue}
+   b.splitLock=Math.max(0,(b.splitLock||0)-dt);
+   b.x+=b.vx*s;b.y+=b.vy*s;
+   // 撞上畫面邊界即從撞擊點擴散。
+   if(b.x<=b.r||b.x>=W-b.r||b.y<=b.r||b.y>=H-b.r){
+    b.x=clamp(b.x,b.r,W-b.r);b.y=clamp(b.y,b.r,H-b.r);
+    if(b.splitLock<=0)splitSpread(b);else b.dead=true;
+    continue;
+   }
+   // 不會傷害敵軍或魔王，撞擊只產生藍色輻射彈幕。
+   if(b.splitLock<=0){
+    for(let e of G.enemies)if(!e.dead&&dist(b,e)<e.r+b.r){splitSpread(b);break}
+    if(b.dead)continue;
+   }
+   // 所有藍色擴散彈皆可清除紅色敵彈；分裂越小，清彈碰撞範圍越小。
+   for(let bomb of G.bad){
+    if(bomb.dead||dist(b,bomb)>=b.r+bomb.r+1)continue;
+    bomb.dead=true;
+    blast(bomb.x,bomb.y,bomb.type==='explosive'?22:8,'#36bfff');
+    if(b.splitLock<=0)splitSpread(b);
+    break;
+   }
+   continue;
+  }
+ if(b.type==='homing'&&G.enemies.length){let target=G.enemies.reduce((a,e)=>dist(b,e)<dist(b,a)?e:a);let dx=target.x-b.x,dy=target.y-b.y,m=Math.max(1,Math.hypot(dx,dy));b.vx=b.vx*.87+dx/m*1.6;b.vy=b.vy*.87+dy/m*1.6;m=Math.max(1,Math.hypot(b.vx,b.vy));b.vx=b.vx/m*10;b.vy=b.vy/m*10}
+ b.x+=b.vx*s;b.y+=b.vy*s;
+ for(let e of G.enemies){if(!e.dead&&dist(b,e)<e.r+b.r){e.hp-=b.dmg;if(e.kind==='boss'&&b.type==='shot'&&Math.random()<.18)blast(b.x,b.y,9,'#ffe96a');b.dead=true;break}}
+}
+// V44：停時仍立即結算我方攻擊；可攔截的敵彈被擊中會當場消失。
+// 敵彈的位置、射擊/爆炸倒數不更新，只有命中後的移除照常執行。
+for(const b of G.bullets){
+ if(b.dead)continue;
+ if(b.type==='spiral'||b.type==='spread'){
+  for(const bad of G.bad){
+   if(bad.dead)continue;
+   if(Math.hypot(b.x-bad.x,b.y-bad.y)<(b.r||4)+(bad.r||5)+2){
+    bad.dead=true;b.dead=true;blast(bad.x,bad.y,bad.type==='explosive'?24:12,'#36bfff');break;
+   }
+  }
+ }
+}
+G.bad=G.bad.filter(b=>!b.dead);
+G.bullets=G.bullets.filter(b=>!b.dead&&(b.type==='spread'||(b.x>-65&&b.x<W+65&&b.y>-75&&b.y<H+70)));
+for(let e of G.enemies){if(e.hp<=0){e.dead=true;G.score+=e.kind==='boss'?1000*(G.stage+1):10;G.kills++;G.shield=Math.min(100,G.shield+(e.kind==='boss'?(G.stage>=5?36:12):(G.stage>=5?1.26:.42)));blast(e.x,e.y,e.r*2.5);if(e.kind==='boss'){if(!G.enemies.some(other=>other!==e&&other.kind==='boss'&&!other.dead&&other.hp>0)){bossHud.style.display='none';G.clear=3;G.nova=null;G.bad=[];G.bullets=[];G.chain=[];flash('所有魔王擊敗！',3)}else flash('擊敗一隻魔王！還有另一隻！',2)}else{G.stageKills++;drop(e.x,e.y)}}}G.enemies=G.enemies.filter(e=>!e.dead);
+ for(const f of G.fx)f.t-=dt;G.fx=G.fx.filter(f=>f.t>0);updateFreezeButton();return;
+ }
+ G.freezeCD=Math.max(0,G.freezeCD-dt);
+ updateFreezeButton();
+let s=Math.min(dt*60,2.3);G.elapsed+=dt;G.phase+=dt*7;G.shield=Math.min(100,G.shield+dt*(G.stage>=7?9.9:G.stage>=6?4.95:G.stage>=5?1.65:.55));G.inv=Math.max(0,G.inv-dt);G.shieldTime=Math.max(0,G.shieldTime-dt);G.escorts=G.escorts.filter(q=>(q.time-=dt)>0);G.escortTime=G.escorts.length?Math.max(...G.escorts.map(q=>q.time)):0;G.banner=Math.max(0,G.banner-dt);if(G.banner===0)notice.textContent='';
+for(let st of G.stars){st.y+=st.v*s*2;if(st.y>H){st.y=0;st.x=rand(0,W)}}
+if(G.clear>0){G.clear-=dt;if(G.clear<=0){if(G.stage===9){end(true);return}G.stage++;G.stageKills=0;G.boss=false;G.enemies=[];G.bad=[];G.bullets=[];G.chain=[];G.drops=[];G.hp=G.stage===7?30:Math.min(G.stage>=7?30:G.stage>=7?30:G.stage>=6?20:10,G.hp+(G.stage===6?12:2));G.drop=3;G.screenClearDrops=0;G.clearCooldown=12;G.shield=Math.min(100,G.shield+8);if(G.stage===5)flash('援軍解鎖！吃到「援」直接召喚20秒，可重複疊加',4);else flash('第 '+(G.stage+1)+' 關：'+stages[G.stage][0],3)}return}
+let p=G.player;if(pointer){p.x+=(pointer.x-p.x)*Math.min(1,dt*18);p.y+=(pointer.y-p.y)*Math.min(1,dt*18)}else{let dx=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0),m=Math.max(1,Math.hypot(dx,dy));p.x+=dx/m*(6+G.speed*.7)*s;p.y+=dy/m*(6+G.speed*.7)*s}p.x=clamp(p.x,18,W-18);p.y=clamp(p.y,110,H-110);
+escortAttack(dt);
+G.shot+=dt;G.spawn+=dt;G.drop+=dt;G.bossAdds+=dt;G.clearCooldown=Math.max(0,G.clearCooldown-dt);shoot();if(G.boss&&G.stage>=5&&G.bossAdds>Math.max(.55,1.6-(G.stage-5)*.19)){G.bossAdds=0;enemy();enemy();if(G.stage>=7)enemy()}if(G.weapon===1){let lv=G.levels[1],width=6+lv*1.7;for(let e of G.enemies)for(let off of laserLanes(lv))if(e.y<p.y&&e.y+e.r>0&&Math.abs(e.x-(p.x+off))<e.r+width){e.hp-=dt*(e.kind==='boss'?(37+lv*11):(75+lv*27))*(1+G.rate*.045)}G.beamHeat+=dt}else G.beamHeat=0;if(G.weapon===3){for(let orb of fireOrbits())for(let e of G.enemies)if(Math.hypot(e.x-orb.x,e.y-orb.y)<e.r+orb.r)e.hp-=dt*(e.kind==='boss'?.24:.36)*(26+G.levels[3]*10)}if(G.weapon===3){for(let orb of fireOrbits())for(let b of G.bad)if(!b.dead&&Math.hypot(b.x-orb.x,b.y-orb.y)<b.r+orb.r+5){b.dead=true;blast(b.x,b.y,b.type==='explosive'?25:11,'#36bfff')}}
+if(G.escorts.length&&G.weapon===3){for(let pos of escortPositions())for(let b of G.bad)if(b.type==='explosive'&&!b.dead&&Math.hypot(b.x-pos.x,b.y-pos.y)<65){b.dead=true;blast(b.x,b.y,20,'#36bfff')}}if(!G.boss&&G.spawn>(G.stage===0?.94:G.stage<5?.58-(G.stage-1)*.045:Math.max(.12,.26-(G.stage-5)*.026))){G.spawn=0;enemy();if(G.stage>=1&&Math.random()<(G.stage<5?.28+G.stage*.12:.96))enemy();if(G.stage>=5){enemy();if(Math.random()<.65)enemy()}if(G.stage>=6){enemy();enemy();if(Math.random()<.8)enemy()}}if(G.drop>5.1){G.drop=0;if(G.stage>=6&&Math.random()<.375)G.drops.push({x:rand(30,W-30),y:-15,type:'support',wi:0,r:15});else drop(rand(25,W-25),-15,true)}
+// 高密度救援補給：第六關起，畫面小怪過多才出現，每關最多兩個。
+const swarm=G.enemies.filter(e=>e.kind!=='boss').length;
+if(G.stage>=5&&swarm>=(G.stage>=6?9:11)&&G.clearCooldown<=0&&G.screenClearDrops<(G.stage>=6?5:3)&&!G.drops.some(d=>d.type==='clear')){
+ G.drops.push({x:rand(50,W-50),y:-20,type:'clear',wi:0,r:19});G.screenClearDrops++;G.clearCooldown=G.stage>=6?12:18;
+ flash('敵機過多！出現全屏清場補給！',1.4);
+}if(!G.boss&&G.stageKills>=stages[G.stage][2]){G.boss=true;G.bossAdds=0;G.enemies=[];G.bad=[];enemy(true);flash('強化魔王來襲！',2.5)}
+for(let e of G.enemies){activeBossDamageScale=e.kind==='boss'?(e.damageScale||1):1;e.ai+=dt;e.fire+=s*(e.kind==='boss'&&G.stage===9?2.25:e.kind==='boss'&&G.stage>=8?1.5:1);
+if(e.kind==='boss'){const bossBoost=G.stage>=8?1.5:1;const attackBoost=G.stage===9?bossBoost*1.5:bossBoost;
+ e.y+=(e.y<115?Math.min(e.v*s*bossBoost,115-e.y):0);
+ if(e.y>=110){
+ // 6 關後魔王會突然俯衝至畫面中下方，再折返
+ if(G.stage>=6&&e.diveT<=0&&e.diveWarn<=0&&e.warpWarn<=0&&e.ai>4&&Math.random()<dt*attackBoost*(.50+(G.stage-6)*.10)){
+   e.diveWarn=1.15;e.diveLane=clamp(p.x+rand(-24,24),65,W-65);
+   flash('紅色警戒！魔王即將沿標記路線俯衝！',1.1);
+ }
+ if(e.diveWarn>0){e.diveWarn-=dt*(G.stage===9?1.5:1);if(e.diveWarn<=0){e.diveT=1.75;e.moveTarget=e.diveLane}}
+ // 第8、9關：魔王短暫預告後瞬移到畫面前方，突襲但不會無預警直接撞上玩家。
+ if((G.stage===7||G.stage===8)&&e.diveT<=0&&e.diveWarn<=0){
+  e.warpCooldown-=dt*attackBoost;
+  if(e.warpCooldown<=0&&e.warpWarn<=0){e.warpWarn=1.05;e.warpX=clamp(p.x+rand(-105,105),75,W-75);e.warpY=rand(270,390);e.warpCooldown=rand(7,10);flash('空間跳躍！注意前方紅色落點！',1.1)}
+  if(e.warpWarn>0){e.warpWarn-=dt;if(e.warpWarn<=0){e.x=e.warpX;e.y=e.warpY;e.warpFlash=.7;blast(e.x,e.y,60,'#f045dc')}}
+ }
+ e.warpFlash=Math.max(0,e.warpFlash-dt);
+ if(e.diveT>0){e.diveT-=dt;let diving=G.stage>=6?e.diveT>.65:e.diveT>1.05;let targetY=diving?(G.stage>=6?clamp(p.y,460,H-90):Math.min(600,340+G.stage*25)):110;let targetX=diving?e.moveTarget:W/2+Math.sin(e.ai*4)*110;e.y+=(targetY-e.y)*Math.min(1,dt*bossBoost*(G.stage>=6?5.2:3.8));e.x+=(targetX-e.x)*Math.min(1,dt*bossBoost*(G.stage>=6?5.5:4.2))}
+ else {e.y+=(115-e.y)*Math.min(1,dt*2.6*bossBoost)}
+ let motion=Math.sin(G.elapsed*(1.8+G.stage*.18)*bossBoost+(e.isMini?Math.PI:0)+(G.stage===8?(e.x>W/2?1.5:-1.5):0));e.x=clamp(e.x+motion*(2.6+G.stage*.4)*s*bossBoost,55,W-55);
+ if(e.charge>0){e.charge-=dt*(G.stage===9?1.5:1);e.chargeX=clamp(e.chargeX,28,W-28);if(e.charge<=0){e.laser=.85+G.stage*.18;flash('魔王雷射！閃避！',.7)}}
+ if(e.laser>0){e.laser-=dt;if(Math.abs(p.x-e.chargeX)<23+G.stage*4&&p.y>e.y)hit(5*(e.damageScale||1))}
+ if(e.ai>4.5&&e.charge<=0&&e.laser<=0&&Math.random()<dt*attackBoost*(.055+G.stage*.026)){e.charge=Math.max(.48,1.8-G.stage*.145)/(G.stage===9?1.5:1);e.chargeX=p.x;flash('警告：魔王正在蓄力雷射！',1.1)}
+ // 魔王 6 關起：預告斜線、橫線、直線的多束雷射
+ if(G.stage>=5){
+ if(e.beamCharge>0){e.beamCharge-=dt*(G.stage===9?1.5:1);if(e.beamCharge<=0){e.beamFire=.95;flash('多角度雷射發射！',.7)}}
+ else if(e.beamFire>0){e.beamFire-=dt;for(let seg of e.beamSet){if(pointLineDist(p.x,p.y,seg[0],seg[1],seg[2],seg[3])<18+G.stage*1.3)hit(5*(e.damageScale||1))}}
+ else if(e.ai>5&&Math.random()<dt*attackBoost*(.13+(G.stage-5)*.028)){
+ e.beamSet=[];let n=G.stage>=8?5:3;
+ for(let i=0;i<n;i++){let a=(i-(n-1)/2)*(.33+G.stage*.025)+Math.PI/2;let ox=e.x+(i-(n-1)/2)*19,oy=e.y; e.beamSet.push([ox,oy,ox+Math.cos(a)*950,oy+Math.sin(a)*950])}
+ if(G.stage>=7)e.beamSet.push([0,clamp(p.y+rand(-60,60),180,H-130),W,clamp(p.y+rand(-60,60),180,H-130)]);
+ e.beamCharge=Math.max(.58,1.7-(G.stage-5)*.22)/(G.stage===9?1.5:1);flash('警告！多角度雷射蓄力',1.1)}
+ // 全螢幕爆炸：預警 3 秒，必須留好 2 秒無敵護盾
+ e.novaTimer-=dt*attackBoost;
+ if(e.novaTimer<=0&&!G.nova){G.nova={t:3.0,boom:0,triggered:false,damageScale:e.damageScale||1};e.novaTimer=Math.max(14,23-G.stage*.7);if(e.isMini)e.novaTimer+=8;flash('危險！全螢幕爆炸倒數！準備護盾',2)}
+ }
+ if(e.fire>Math.max(13,48-G.stage*3.4)){e.fire=0;G.bossClock++;let count=4+Math.floor(G.stage*2.8),aim=Math.atan2(p.y-e.y,p.x-e.x);for(let i=0;i<count;i++){let a=(G.bossClock%3===0?G.bossClock*.25+i*2*Math.PI/count:aim+(i-(count-1)/2)*.15);hostile(e.x,e.y+25,Math.cos(a)*(3.2+G.stage*.3),Math.sin(a)*(3.2+G.stage*.3),4.5)} }
+ if(e.ai>3.5&&Math.random()<dt*attackBoost*(.08+G.stage*.032+(G.stage>=5?(G.stage-4)*.027:0))){let a=Math.atan2(p.y-e.y,p.x-e.x);hostile(e.x,e.y+18,Math.cos(a)*2.25,Math.sin(a)*2.25,12+G.stage*2,'explosive',{fuse:Math.max(.85,1.6+Math.random()*.6-(G.stage>=5?(G.stage-4)*.10:0)),blastR:42+G.stage*12+(G.stage>=5?(G.stage-4)*18:0)})}
+ if(e.ai>2.5&&Math.random()<dt*attackBoost*(.055+G.stage*.025)){e.burst=.42;e.dir=p.x>e.x?1:-1}
+ if(e.burst>0){e.burst-=dt;e.x=clamp(e.x+e.dir*(5+G.stage*1.6)*s*bossBoost,50,W-50)}if(e.ai>2.8&&e.charge<=0&&e.laser<=0&&e.diveT<=0&&e.diveWarn<=0&&e.warpWarn<=0&&e.warpFlash<=0){e.y=clamp(e.y+Math.sin(e.ai*2.3*bossBoost)*(1+G.stage*.45)*s*bossBoost,98,230)}
+ }
+}else{
+ if(e.kind==='raider'){if(e.ai<.75)e.y+=e.v*s*2.2;else if(e.ai<1.65){e.y-=e.v*s*.8;e.x+=Math.sin(e.ai*9)*3*s}else e.y+=e.v*s*.9;e.x+=e.dir*2.3*s;if(e.x<22||e.x>W-22)e.dir*=-1}
+ else if(e.kind==='zigzag'){e.y+=e.v*s*(e.ai%2.8<1.9?1.4:-.45);e.x+=Math.sin(e.ai*11)*5*s;}else if(e.kind==='elite'){e.y+=e.v*s*(e.ai%4<2.3?1.0:-.52);e.x+=Math.sin(e.ai*3.5)*4*s;}else if(e.kind==='interceptor'){e.y+=e.v*s*(e.ai%2.7<1.4?1.7:-.9);e.x+=Math.sin(e.ai*8)*5*s;}else if(e.kind==='gunship'){e.y+=e.v*s*(e.ai<2?1:-.3);e.x+=Math.sin(e.ai*2.6)*2.2*s;}else{e.y+=e.v*s;if(e.kind==='fast')e.x+=Math.sin(G.elapsed*7+e.y*.04)*3*s;}
+ if(e.fire>((e.kind==='tank'?40:e.kind==='elite'?16:e.kind==='interceptor'?19:e.kind==='gunship'?23:e.kind==='zigzag'?33:e.kind==='raider'?28:65)*(G.stage===0?1.65:G.stage<5?.84:.65))){e.fire=0;if(e.kind!=='small'){let a=Math.atan2(p.y-e.y,p.x-e.x);hostile(e.x,e.y,Math.cos(a)*3.3,Math.sin(a)*3.3,4.5);if(e.kind==='gunship'||e.kind==='elite')for(let j of [-1,1])hostile(e.x,e.y,Math.cos(a+j*.23)*3,Math.sin(a+j*.23)*3,4.5)}}
+}if(dist(e,p)<e.r+13){if(e.kind==='boss'){hit(20);flash('魔王撞擊！生命 -20',1)}else hit(1.5*(e.damageScale||1));e.hp-=15}}
+G.enemies=G.enemies.filter(e=>e.y<H+65);
+ if(G.nova){G.nova.t-=dt;if(G.nova.t<=0&&!G.nova.triggered){G.nova.triggered=true;G.nova.boom=2.0;flash('⚠ 全螢幕爆炸！！',2);if(G.shieldTime<=0&&G.nova.damageScale>=1){G.hp=0;blast(G.player.x,G.player.y,100,'#fff0ff');G.state='novaDeath';G.novaDeathTime=2.0;return}else if(G.shieldTime<=0){hit(G.hp*.5)}}if(G.nova.triggered){G.nova.boom-=dt;if(G.nova.boom<=0)G.nova=null}}
+
+for(let b of G.bullets){
+ b.age+=dt;
+  if(b.type==='spread'){
+   if(b.age>=1){b.dead=true;continue}
+   b.splitLock=Math.max(0,(b.splitLock||0)-dt);
+   b.x+=b.vx*s;b.y+=b.vy*s;
+   // 撞上畫面邊界即從撞擊點擴散。
+   if(b.x<=b.r||b.x>=W-b.r||b.y<=b.r||b.y>=H-b.r){
+    b.x=clamp(b.x,b.r,W-b.r);b.y=clamp(b.y,b.r,H-b.r);
+    if(b.splitLock<=0)splitSpread(b);else b.dead=true;
+    continue;
+   }
+   // 不會傷害敵軍或魔王，撞擊只產生藍色輻射彈幕。
+   if(b.splitLock<=0){
+    for(let e of G.enemies)if(!e.dead&&dist(b,e)<e.r+b.r){splitSpread(b);break}
+    if(b.dead)continue;
+   }
+   // 所有藍色擴散彈皆可清除紅色敵彈；分裂越小，清彈碰撞範圍越小。
+   for(let bomb of G.bad){
+    if(bomb.dead||dist(b,bomb)>=b.r+bomb.r+1)continue;
+    bomb.dead=true;
+    blast(bomb.x,bomb.y,bomb.type==='explosive'?22:8,'#36bfff');
+    if(b.splitLock<=0)splitSpread(b);
+    break;
+   }
+   continue;
+  }
+ if(b.type==='homing'&&G.enemies.length){let target=G.enemies.reduce((a,e)=>dist(b,e)<dist(b,a)?e:a);let dx=target.x-b.x,dy=target.y-b.y,m=Math.max(1,Math.hypot(dx,dy));b.vx=b.vx*.87+dx/m*1.6;b.vy=b.vy*.87+dy/m*1.6;m=Math.max(1,Math.hypot(b.vx,b.vy));b.vx=b.vx/m*10;b.vy=b.vy/m*10}
+ b.x+=b.vx*s;b.y+=b.vy*s;
+ for(let e of G.enemies){if(!e.dead&&dist(b,e)<e.r+b.r){e.hp-=b.dmg;if(e.kind==='boss'&&b.type==='shot'&&Math.random()<.18)blast(b.x,b.y,9,'#ffe96a');b.dead=true;break}}
+}
+G.bullets=G.bullets.filter(b=>!b.dead&&(b.type==='spread'||(b.x>-65&&b.x<W+65&&b.y>-75&&b.y<H+70)));
+for(let e of G.enemies){if(e.hp<=0){e.dead=true;G.score+=e.kind==='boss'?1000*(G.stage+1):10;G.kills++;G.shield=Math.min(100,G.shield+(e.kind==='boss'?(G.stage>=5?36:12):(G.stage>=5?1.26:.42)));blast(e.x,e.y,e.r*2.5);if(e.kind==='boss'){if(!G.enemies.some(other=>other!==e&&other.kind==='boss'&&!other.dead&&other.hp>0)){bossHud.style.display='none';G.clear=3;G.nova=null;G.bad=[];G.bullets=[];G.chain=[];flash('所有魔王擊敗！',3)}else flash('擊敗一隻魔王！還有另一隻！',2)}else{G.stageKills++;drop(e.x,e.y)}}}G.enemies=G.enemies.filter(e=>!e.dead);
+for(let b of G.bad){if(b.dead)continue;b.age+=dt;b.x+=b.vx*s;b.y+=b.vy*s;if(b.type==='explosive'&&(b.age>b.fuse||dist(b,p)<b.r+12)){explosion(b.x,b.y,b.blastR,true,b.damageScale||1);b.dead=true}else if(dist(b,p)<b.r+11){hit(1.5*(b.damageScale||1));b.dead=true}}G.bad=G.bad.filter(b=>!b.dead&&b.x>-30&&b.x<W+30&&b.y>-30&&b.y<H+30).slice(-400);
+for(let d of G.drops){d.y+=2.4*s;if(dist(d,p)<d.r+18){d.dead=true;if(d.type==='clear'){for(let foe of G.enemies){if(foe.kind!=='boss'){foe.dead=true;G.score+=10;G.kills++;G.stageKills++}}G.bad=[];G.enemies=G.enemies.filter(foe=>!foe.dead);blast(W/2,H/2,Math.max(W,H),'#ffe96c');flash('全螢幕清場！',1.3)}else if(d.type==='weapon'){G.levels[d.wi]=Math.min(10,G.levels[d.wi]+1)}else if(d.type==='support'){useEscort();flash('吃到「援」！護衛軍出擊20秒',1.3)}else if(d.type==='rate')G.rate=Math.min(10,G.rate+1);else if(d.type==='speed')G.speed=Math.min(10,G.speed+1);else G.hp=Math.min(G.stage>=7?30:G.stage>=6?20:10,G.hp+(G.stage===6?12:2));blast(d.x,d.y,28,'#a7ff82');updateButtons()}}G.drops=G.drops.filter(d=>!d.dead&&d.y<H+25);
+for(let q of G.chain){q.t-=dt;if(q.t<=0){playerBombBlast(q.x,q.y,q.lv,q.power,true);q.dead=true}}G.chain=G.chain.filter(q=>!q.dead);
+for(let f of G.fx){f.t-=dt;f.r+=(f.max-f.r)*.22*s}G.fx=G.fx.filter(f=>f.t>0);
+}
+function pointLineDist(px,py,x1,y1,x2,y2){let dx=x2-x1,dy=y2-y1,t=clamp(((px-x1)*dx+(py-y1)*dy)/(dx*dx+dy*dy||1),0,1);return Math.hypot(px-(x1+dx*t),py-(y1+dy*t))}
+function circle(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}function poly(points,fill,stroke){ctx.beginPath();ctx.moveTo(points[0][0],points[0][1]);for(let i=1;i<points.length;i++)ctx.lineTo(...points[i]);ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=1.5;ctx.stroke()}
+function drawMonster(e){
+ const x=e.x,y=e.y,r=e.r,level=G.stage,tm=G.elapsed;
+ ctx.save();ctx.translate(x,y);ctx.rotate(Math.sin(tm*1.9+level)*.075);
+ const hue=[7,82,0,318,265,345,24,354,326,287][level];
+ ctx.shadowColor=`hsl(${hue} 100% 48%)`;ctx.shadowBlur=15;
+ // Asymmetric articulated tentacles, jagged spines, organic armor
+ for(let i=0;i<7+level+(level%4)*2;i++){
+   let a=i*Math.PI*2/(7+level+(level%4)*2)+level*.34, rr=r*(1.1+(.2*Math.sin(i*4+level)));
+   let tx=Math.cos(a)*rr,ty=Math.sin(a)*rr;
+   ctx.strokeStyle=i%3===0?'#e64a62':'#542c59';ctx.lineWidth=6+(i%4)*2;ctx.beginPath();ctx.moveTo(Math.cos(a)*r*.55,Math.sin(a)*r*.55);
+   ctx.quadraticCurveTo(tx+Math.sin(tm*2+i)*18,ty-20,tx*1.7+Math.sin(tm*3+i)*12,ty*1.7);ctx.stroke();
+   ctx.fillStyle=i%2?'#f04d59':'#d7c0a9';ctx.beginPath();ctx.moveTo(tx*1.7,ty*1.7);ctx.lineTo(tx*1.9-6,ty*1.9+12);ctx.lineTo(tx*1.85+9,ty*1.85+8);ctx.fill();
+ }
+ ctx.fillStyle=`hsl(${hue} 42% 20%)`;ctx.strokeStyle='#b8748b';ctx.lineWidth=3;
+ ctx.beginPath();ctx.ellipse(0,0,r*(.82+(level%4)*.13),r*(.72+(level%3)*.15),level%2?.4:-.15,0,Math.PI*2);ctx.fill();ctx.stroke();
+ for(let i=0;i<4+level*2;i++){
+   let a=i*2.4+level,ex=Math.sin(a)*r*.8,ey=Math.cos(a*1.7)*r*.65;
+   ctx.fillStyle='#f4d5bb';ctx.beginPath();ctx.ellipse(ex,ey,7+(i%3)*2,8+(i%4)*2,.3,0,Math.PI*2);ctx.fill();
+   ctx.fillStyle=i%2?'#ff2c48':'#f4ee4d';ctx.beginPath();ctx.arc(ex+Math.sin(tm+i)*1.5,ey,3.8,0,7);ctx.fill();
+ }
+ // huge irregular mouth and needle teeth
+ ctx.fillStyle='#11050e';ctx.beginPath();ctx.ellipse((level%3-1)*r*.12,r*(.25+(level%4)*.045),r*(.34+(level%4)*.075),r*(.27+(level%3)*.06),Math.sin(tm)*.12,0,7);ctx.fill();
+ ctx.fillStyle='#f7e4cc';for(let i=-4;i<=4;i++){
+   let xx=i*r*.095;ctx.beginPath();ctx.moveTo(xx-5,r*.11);ctx.lineTo(xx+4,r*.11);ctx.lineTo(xx,r*(.29+(i%3)*.025));ctx.fill();
+   ctx.beginPath();ctx.moveTo(xx-5,r*.52);ctx.lineTo(xx+4,r*.52);ctx.lineTo(xx,r*.37);ctx.fill();
+ }
+ ctx.fillStyle='#ff294f';ctx.beginPath();ctx.ellipse(0,-r*.22,r*(.15+(level%3)*.055),r*.22,0,0,7);ctx.fill();
+ // Ten distinct asymmetrical body motifs: horns, split jaws, extra heads and bladed limbs
+ if(level%2===0){for(let k of [-1,1]){ctx.fillStyle='#ad8b9e';ctx.beginPath();ctx.moveTo(k*r*.55,-r*.4);ctx.lineTo(k*r*(1.2+level*.035),-r*(1.25+level*.06));ctx.lineTo(k*r*.23,-r*.73);ctx.fill()}}
+ if(level%3===1){for(let k of [-1,1]){circle(k*r*.72,r*.33,r*.29,'#4b142f');circle(k*r*.72,r*.33,r*.13,'#ffea7d')}}
+ if(level%3===2){for(let k=0;k<4;k++){let xx=(k-1.5)*r*.38;ctx.strokeStyle='#e4a7bd';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(xx,-r*.6);ctx.lineTo(xx*1.4,-r*(1.12+(k%2)*.24));ctx.stroke()}}
+ if(level>=6){for(let k of [-1,1]){ctx.fillStyle='#160610';ctx.beginPath();ctx.ellipse(k*r*.78,-r*.13,r*.23,r*.36,k*.3,0,7);ctx.fill();circle(k*r*.78,-r*.13,r*.10,'#ff395e')}}
+ ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-r*.05,-r*.27,r*.075,0,7);ctx.fill();
+ ctx.restore();
+}
+function render(){if(!G)return;ctx.setTransform(scaleX,0,0,scaleY,0,0);ctx.fillStyle=stages[G.stage][1];ctx.fillRect(0,0,W,H);for(let st of G.stars){ctx.fillStyle='#36547a';ctx.fillRect(st.x,st.y,1.3,st.v*3)}for(let e of G.enemies){let c=e.kind==='boss'?'#b679ff':e.kind==='tank'?'#ffad5b':e.kind==='fast'?'#ff607f':e.kind==='raider'?'#ffdf69':e.kind==='zigzag'?'#8affd7':e.kind==='elite'?'#ff4be3':e.kind==='interceptor'?'#ffd86a':e.kind==='gunship'?'#8ba6ff':'#ed6675';if(e.kind==='boss')drawMonster(e);else poly([[e.x,e.y+e.r],[e.x-e.r,e.y-e.r*.6],[e.x,e.y-e.r*.25],[e.x+e.r,e.y-e.r*.6]],c,'#ffd6e4');if(e.kind==='boss'){ctx.fillStyle='#452d52';ctx.fillRect(e.x-e.r*.8,e.y-e.r-15,e.r*1.6,7);ctx.fillStyle='#ff55e7';ctx.fillRect(e.x-e.r*.8,e.y-e.r-15,e.r*1.6*Math.max(0,e.hp/e.max),7)}}for(let b of G.bullets){let color={shot:cols[0],laser:cols[1],homing:cols[2],spiral:cols[3],ricochet:cols[4],escort:'#ffe24c'}[b.type];if(b.type==='laser'){ctx.strokeStyle=color;ctx.lineWidth=b.r*1.7;ctx.beginPath();ctx.moveTo(b.x,b.y+15);ctx.lineTo(b.x,b.y-30);ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(2,b.r*.5);ctx.stroke()}else if(b.type==='escort'){ctx.shadowColor='#ffe25d';ctx.shadowBlur=12;circle(b.x,b.y,7,'#f9c72b');circle(b.x,b.y,3,'#fff9cf');ctx.shadowBlur=0}else if(b.type==='spread'){ctx.shadowColor='#37c7ff';ctx.shadowBlur=b.depth===0?20:9;circle(b.x,b.y,b.r+1,b.depth===0?'#005bfa':'#188cf5');circle(b.x,b.y,b.r*.62,'#d4faff');ctx.shadowBlur=0}else circle(b.x,b.y,b.r,color)}if(G.weapon===1&&G.state==='play'){let lv=G.levels[1],p=G.player,w=6+lv*1.7;for(let off of laserLanes(lv)){let x=p.x+off;ctx.shadowColor='#ffdd33';ctx.shadowBlur=20;ctx.fillStyle='#ffe04a99';ctx.fillRect(x-w*1.3,0,w*2.6,p.y-10);ctx.fillStyle='#fff';ctx.fillRect(x-w*.25,0,w*.5,p.y-10);ctx.shadowBlur=0}}
+if(G.escorts.length){for(let pos of escortPositions()){ctx.save();ctx.translate(pos.x,pos.y);ctx.shadowColor='#ffdb67';ctx.shadowBlur=12;poly([[0,-14],[-10,9],[0,4],[10,9]],'#d2a74a','#fff2b0');circle(0,0,3,'#fff6c6');ctx.restore();if(G.weapon===1){ctx.strokeStyle='#ffe24c';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(pos.x,0);ctx.lineTo(pos.x,pos.y-10);ctx.stroke()}if(G.weapon===3){let lv=G.levels[3],rings=1+Math.floor((lv-1)/2);for(let ring=0;ring<rings;ring++){let count=Math.max(6,Math.round((8+lv*2)*.72)+ring*2),rad=55+ring*43;for(let k=0;k<count;k++){let a=G.phase*(1.4+ring*.22)*(ring%2?-1:1)+k*Math.PI*2/count+ring*.55;circle(pos.x+Math.cos(a)*rad,pos.y+Math.sin(a)*rad,4+lv*.22,'#38c8ff')}}}else if(G.weapon!==1){ctx.shadowColor=G.weapon===4?'#31bcff':'#ffe24c';ctx.shadowBlur=9;circle(pos.x,pos.y-17,3+Math.sin(G.elapsed*20)**2*2,G.weapon===4?'#38c8ff':'#ffe24c');ctx.shadowBlur=0;}}}
+if(G.weapon===3&&G.state==='play'){for(let orb of fireOrbits()){ctx.shadowColor='#15d9ff';ctx.shadowBlur=15;circle(orb.x,orb.y,orb.r+3,'#1268ee');circle(orb.x,orb.y,orb.r,'#8cefff');ctx.shadowBlur=0}}
+for(let e of G.enemies){if(e.kind==='boss'){
+ if(e.diveWarn>0){ctx.save();ctx.fillStyle='#ff243c35';ctx.fillRect(e.diveLane-e.r,0,e.r*2,H);ctx.strokeStyle='#ff334f';ctx.lineWidth=4+Math.sin(G.elapsed*22)*2;ctx.setLineDash([18,10]);ctx.beginPath();ctx.moveTo(e.diveLane,0);ctx.lineTo(e.diveLane,H);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#fff';ctx.font='bold 19px sans-serif';ctx.textAlign='center';ctx.fillText('⚠ 俯衝路線',e.diveLane,Math.min(H-130,G.player.y-85));ctx.restore()}
+ if(e.warpWarn>0){ctx.save();ctx.strokeStyle='#ff397a';ctx.lineWidth=5;ctx.setLineDash([9,8]);ctx.beginPath();ctx.arc(e.warpX,e.warpY,e.r+18,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#ff316244';ctx.beginPath();ctx.arc(e.warpX,e.warpY,e.r+12,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 17px sans-serif';ctx.textAlign='center';ctx.fillText('⚠ 瞬移落點',e.warpX,e.warpY-e.r-26);ctx.restore()}
+ if(e.charge>0){ctx.fillStyle='#ff415822';ctx.fillRect(e.chargeX-27,0,54,H);ctx.strokeStyle='#ffda67';ctx.lineWidth=2+Math.sin(G.elapsed*25)*1.5;ctx.setLineDash([12,8]);ctx.beginPath();ctx.moveTo(e.chargeX,e.y);ctx.lineTo(e.chargeX,H);ctx.stroke();ctx.setLineDash([]);circle(e.chargeX,e.y+15,9+Math.sin(G.elapsed*20)*4,'#ff3657')}if(e.laser>0){ctx.shadowColor='#ff143e';ctx.shadowBlur=30;ctx.fillStyle='#ff1749aa';ctx.fillRect(e.chargeX-24-G.stage*4,e.y,48+G.stage*8,H);ctx.fillStyle='#ffb3bd';ctx.fillRect(e.chargeX-9-G.stage*2,e.y,18+G.stage*4,H);ctx.shadowBlur=0}}}
+for(let e of G.enemies)if(e.kind==='boss'&&e.beamSet.length&&(e.beamCharge>0||e.beamFire>0)){
+ ctx.save();ctx.lineCap='round';for(let seg of e.beamSet){ctx.beginPath();ctx.moveTo(seg[0],seg[1]);ctx.lineTo(seg[2],seg[3]);if(e.beamCharge>0){ctx.strokeStyle='#ff3657';ctx.lineWidth=2+Math.sin(G.elapsed*25)*1.4;ctx.setLineDash([12,10])}else{ctx.strokeStyle='#ff3a6f';ctx.lineWidth=34;ctx.shadowColor='#ff245a';ctx.shadowBlur=25}ctx.stroke();if(e.beamFire>0){ctx.strokeStyle='#ffb3bc';ctx.lineWidth=9;ctx.shadowBlur=0;ctx.stroke()}ctx.setLineDash([])}ctx.restore()}
+if(G.nova&&!G.nova.triggered){ctx.fillStyle='#ff3030'+Math.floor((.12+.19*Math.abs(Math.sin(G.elapsed*10)))*255).toString(16).padStart(2,'0');ctx.fillRect(0,0,W,H);ctx.fillStyle='#ffd4ef';ctx.font='bold 24px sans-serif';ctx.textAlign='center';ctx.fillText(`爆炸倒數 ${Math.ceil(G.nova.t)} 秒`,W/2,H*.36)}
+for(let b of G.bad){if(b.type==='explosive'){ctx.shadowColor='#c02aff';ctx.shadowBlur=17;circle(b.x,b.y,b.r+5,'#a010b844');circle(b.x,b.y,b.r,'#9b23c9');circle(b.x,b.y,b.r*.55,'#ff395b');ctx.shadowBlur=0;ctx.strokeStyle='#f34cdd';ctx.lineWidth=2;ctx.beginPath();ctx.arc(b.x,b.y,b.r+7+Math.sin(b.age*17)*3,0,7);ctx.stroke()}else {ctx.shadowColor='#ff263f';ctx.shadowBlur=7;circle(b.x,b.y,b.r,'#ff263f');ctx.shadowBlur=0}}for(let d of G.drops){let color=d.type==='clear'?'#ffffff':d.type==='support'?'#ffd96b':d.type==='weapon'?cols[d.wi]:d.type==='rate'?'#ffde69':d.type==='speed'?'#83d7ff':'#ff7d9b';circle(d.x,d.y,d.r,'#142b49');ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,7);ctx.stroke();ctx.fillStyle=color;ctx.textAlign='center';ctx.font='bold 16px sans-serif';ctx.fillText(d.type==='clear'?'爆':d.type==='support'?'援':d.type==='weapon'?String(d.wi+1):d.type==='rate'?'F':d.type==='speed'?'S':'+',d.x,d.y+5)}for(let f of G.fx){ctx.strokeStyle=f.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,7);ctx.stroke()}if(G.inv>0){ctx.strokeStyle='#78faff';ctx.lineWidth=4;ctx.shadowColor='#47e8ff';ctx.shadowBlur=18;ctx.beginPath();ctx.arc(G.player.x,G.player.y,35+Math.sin(G.elapsed*12)*3,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0}if(G.shieldTime>0){let p=G.player,phase=G.elapsed*8;
+ctx.save();ctx.translate(p.x,p.y);ctx.shadowColor='#23caff';ctx.shadowBlur=36;
+let grad=ctx.createRadialGradient(0,0,12,0,0,60);grad.addColorStop(0,'#36e9ff24');grad.addColorStop(.75,'#13adff4b');grad.addColorStop(1,'#b1faff88');ctx.fillStyle=grad;ctx.beginPath();ctx.arc(0,0,56+Math.sin(phase)*4,0,7);ctx.fill();
+for(let k=0;k<3;k++){ctx.strokeStyle=['#cfffff','#27d6ff','#6a8fff'][k];ctx.lineWidth=5-k;ctx.beginPath();ctx.arc(0,0,47+k*6,phase*(k%2?-.45:.65)+k,phase*(k%2?-.45:.65)+k+Math.PI*1.45);ctx.stroke()}
+for(let k=0;k<9;k++){let a=phase*.7+k*2*Math.PI/9;ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(Math.cos(a)*55,Math.sin(a)*55,2.5,0,7);ctx.fill()}
+ctx.restore();}
+if(G.nova&&G.nova.triggered&&G.nova.boom>0){let progress=1-G.nova.boom/2.0;ctx.save();let glow=ctx.createRadialGradient(W*.5,H*.45,8,W*.5,H*.45,Math.max(W,H)*.85);glow.addColorStop(0,'rgba(255,255,255,1)');glow.addColorStop(.32,'rgba(255,245,255,.98)');glow.addColorStop(.72,'rgba(255,116,236,.95)');glow.addColorStop(1,'rgba(211,36,119,.9)');ctx.globalAlpha=progress<.3?1:Math.max(.12,1-(progress-.3)/.7);ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);ctx.globalCompositeOperation='screen';ctx.strokeStyle='#ffffff';ctx.lineWidth=8+progress*50;ctx.beginPath();ctx.arc(W*.5,H*.45,progress*Math.max(W,H)*1.5,0,Math.PI*2);ctx.stroke();ctx.globalCompositeOperation='source-over';ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='bold 31px sans-serif';ctx.shadowColor='#f0f';ctx.shadowBlur=24;ctx.fillText('全螢幕爆炸！',W/2,H*.34);ctx.restore()}
+if(G.inv<=0||Math.floor(G.inv*12)%2===0){let p=G.player;poly([[p.x,p.y-25],[p.x-20,p.y+18],[p.x,p.y+8],[p.x+20,p.y+18]],'#3dc6ff','#f1ffff');poly([[p.x-7,p.y+13],[p.x,p.y+30+Math.random()*8],[p.x+7,p.y+13]],'#ffb456','#ffdc92');circle(p.x,p.y-4,5,'#fff')}ctx.fillStyle='#172b44';ctx.fillRect(G.player.x-25,G.player.y+23,50,6);ctx.fillStyle=G.hp<=3?'#ff4d66':'#52f5a4';ctx.fillRect(G.player.x-25,G.player.y+23,50*Math.max(0,G.hp)/(G.stage>=7?30:G.stage>=6?20:10),6);ctx.strokeStyle='#d9edff';ctx.lineWidth=1;ctx.strokeRect(G.player.x-25,G.player.y+23,50,6);line1.textContent=`第 ${G.stage+1}/10 關 ${stages[G.stage][0]} · ${G.score}分`;let activeBoss=G.enemies.find(e=>e.kind==='boss');bossHud.style.display=activeBoss?'block':'none';if(activeBoss)bossFill.style.width=(100*G.enemies.filter(e=>e.kind==='boss').reduce((a,e)=>a+Math.max(0,e.hp),0)/G.enemies.filter(e=>e.kind==='boss').reduce((a,e)=>a+e.max,0))+'%';healthLabel.textContent=`♥ 戰機生命值：${G.hp} / ${G.stage>=7?30:G.stage>=6?20:10}`;healthFill.style.width=`${100*Math.max(0,G.hp)/(G.stage>=7?30:G.stage>=6?20:10)}%`;healthFill.style.background=G.hp<=3?'linear-gradient(90deg,#ff344e,#ffad61)':'linear-gradient(90deg,#2ce6a4,#b6ff67)';shieldBtn.textContent=G.shieldTime>0?'⚡無敵 '+G.shieldTime.toFixed(1)+'s':G.shield>=100?'護盾 READY':`護盾 ${Math.floor(G.shield)}%`;shieldBtn.style.background=G.shieldTime>0?'#18b9ff':G.shield>=100?'#0e967e':'#233d58';shieldBtn.style.boxShadow=G.shieldTime>0?'0 0 22px #52eaff, inset 0 0 12px #d5ffff':'none';line2.textContent=`${names[G.weapon]} Lv.${G.levels[G.weapon]} · 攻速${G.rate} · 移速${G.speed}`}
+
+// V38 音樂：可為十關匯入自有音檔，IndexedDB 儲存於此瀏覽器；無音檔時播放自製電子配樂。
+const musicTitles=['普隆德拉風格','斐揚風格','艾茵貝赫風格','野外探索','地城冒險','攻城戰風格','危險禁區','深淵對決','雙王決戰','最終攻城戰'];
+let musicStage=-1,musicMuted=false,musicUnlocked=false,musicCtx=null,musicTimer=null,musicStep=0,musicMelodyStage=-1;
+const musicPatterns=[
+[0,4,7,12,7,4,2,7],[0,2,5,7,9,7,5,2],[0,3,7,10,7,3,5,7],[0,5,7,9,7,5,4,2],
+[0,3,5,10,7,5,3,2],[0,7,12,10,7,5,3,7],[0,1,6,7,10,7,6,1],[0,3,6,9,12,9,6,3],
+[0,2,6,9,14,9,6,2],[0,3,7,12,15,12,10,7]];
+const musicKeys=[57,62,52,55,50,45,48,46,43,41];
+function tone(freq,seconds,volume=.05,wave='triangle'){
+ if(!musicCtx||musicCtx.state!=='running')return;
+ const t=musicCtx.currentTime,o=musicCtx.createOscillator(),v=musicCtx.createGain();o.type=wave;o.frequency.value=freq;
+ v.gain.setValueAtTime(.0001,t);v.gain.exponentialRampToValueAtTime(volume,t+.018);v.gain.exponentialRampToValueAtTime(.0001,t+seconds);o.connect(v);v.connect(musicCtx.destination);o.start(t);o.stop(t+seconds+.03);
+}
+function playGenerated(stage){
+ if(musicTimer)return;
+ try{musicCtx=musicCtx||new (window.AudioContext||window.webkitAudioContext)();musicCtx.resume();}catch(_){return}
+ musicMelodyStage=stage;musicStep=0;
+ musicTimer=setInterval(()=>{
+  if(musicMuted||!G||G.state!=='play')return;
+  const n=musicPatterns[Math.max(0,musicMelodyStage)][musicStep%8];
+  const midi=musicKeys[Math.max(0,musicMelodyStage)]+n, f=440*Math.pow(2,(midi-69)/12);
+  tone(f,.23,.037,musicMelodyStage>=5?'sawtooth':'triangle');
+  if(musicStep%2===0)tone(440*Math.pow(2,(musicKeys[musicMelodyStage]-24-69)/12),.38,.025,'sine');
+  musicStep++;
+ },musicMelodyStage>=5?175:245);
+}
+function stopGenerated(){if(musicTimer){clearInterval(musicTimer);musicTimer=null}}
+// V39：每關自動播放不同原創配樂，不提供音樂設定、匯入或開關按鍵。
+function syncMusic(){
+ if(!G||G.state!=='play'){stopGenerated();return}
+ const stage=G.stage;
+ if(musicStage===stage&&musicTimer)return;
+ stopGenerated();musicStage=stage;
+ if(musicUnlocked)playGenerated(stage);
+}
+function unlockMusic(){musicUnlocked=true;musicStage=-1;syncMusic()}
+
+function frame(t){let dt=Math.min(.04,(t-last)/1000||.016);last=t;tick(dt);if(G&&G.state==='play'&&musicStage!==G.stage)syncMusic();if(G&&G.state!=='play'){stopGenerated();musicStage=-1}render();requestAnimationFrame(frame)}
+function pos(e){let rect=C.getBoundingClientRect();return{x:clamp((e.clientX-rect.left)/rect.width*W,18,W-18),y:clamp((e.clientY-rect.top)/rect.height*H-35,110,H-110)}}// 多點觸控：只由第一根按在遊戲畫布上的手指控制飛機；另一根手指可同時按武器按鈕。
+// 真正的多點觸控：Touch.identifier 固定左手，右手按鈕在 touchstart 立即切換，不依賴 click。
+let moveTouchId=null;
+function touchPos(t){return pos(t)}
+C.addEventListener('touchstart',e=>{
+ if(!G||G.state!=='play')return;
+ if(moveTouchId===null){const t=e.changedTouches[0];if(t){moveTouchId=t.identifier;pointer=touchPos(t)}}
+ e.preventDefault();
+},{passive:false});
+C.addEventListener('touchmove',e=>{
+ for(const t of e.changedTouches)if(t.identifier===moveTouchId){pointer=touchPos(t);break}
+ e.preventDefault();
+},{passive:false});
+function touchRelease(e){for(const t of e.changedTouches)if(t.identifier===moveTouchId){moveTouchId=null;pointer=null;break}e.preventDefault()}
+C.addEventListener('touchend',touchRelease,{passive:false});
+C.addEventListener('touchcancel',touchRelease,{passive:false});
+// 桌面滑鼠與觸控獨立，避免觸控裝置的合成 click 造成干擾。
+C.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;if(G&&G.state==='play'){movePointerId=e.pointerId;pointer=pos(e);C.setPointerCapture(e.pointerId)}});
+C.addEventListener('pointermove',e=>{if(e.pointerType==='touch')return;if(movePointerId===e.pointerId)pointer=pos(e)});
+function releaseMouse(e){if(e.pointerType==='touch'||movePointerId!==e.pointerId)return;movePointerId=null;pointer=null}
+C.addEventListener('pointerup',releaseMouse);C.addEventListener('pointercancel',releaseMouse);
+function switchWeapon(n){if(!G||G.state!=='play'||n===4)return;G.weapon=n;G.shot=0;updateButtons()}
+document.querySelectorAll('[data-w]').forEach(b=>{
+ b.style.touchAction='none';
+ b.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();switchWeapon(+b.dataset.w)},{passive:false});
+ b.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;e.stopPropagation();switchWeapon(+b.dataset.w)});
+ b.addEventListener('click',e=>{if(e.detail===0)switchWeapon(+b.dataset.w)});
+});
+freezeBtn.style.touchAction='none';freezeBtn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();useFreeze()},{passive:false});freezeBtn.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch'){e.stopPropagation();useFreeze()}});freezeBtn.addEventListener('click',e=>{if(e.detail===0)useFreeze()});
+shieldBtn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();useShield()},{passive:false});shieldBtn.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;e.stopPropagation();useShield()});shieldBtn.addEventListener('click',e=>{if(e.detail===0)useShield()});document.getElementById('pause').addEventListener('click',()=>{if(!G)return;G.state=G.state==='play'?'pause':G.state==='pause'?'play':G.state;document.getElementById('pause').textContent=G.state==='pause'?'繼續':'暫停';if(G.state==='pause')flash('已暫停',10000);else flash('',0)});document.getElementById('start').addEventListener('click',()=>{init(G&&G.state==='over');unlockMusic()});addEventListener('keydown',e=>{keys[e.key]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(G&&(e.key==='q'||e.key==='Q'))useShield();if(G&&/^[1-4]$/.test(e.key)){G.weapon=+e.key-1;updateButtons()}if(G&&e.key==='5')useFreeze()});addEventListener('keyup',e=>keys[e.key]=false);G={state:'menu',stage:0,stars:[],enemies:[],bullets:[],bad:[],drops:[],fx:[],chain:[],player:{x:W/2,y:H-145},levels:[1,1,1,1,1],weapon:0,hp:7,rate:1,speed:1,stageKills:0,boss:false,score:0,shield:0,shieldTime:0,escortCharge:0,escortTime:0,escortShot:0,escorts:[],escortBuff:0,nova:null,inv:0,elapsed:0};requestAnimationFrame(frame);
+})();</script></body></html>
